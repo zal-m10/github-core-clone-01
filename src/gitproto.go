@@ -400,12 +400,14 @@ func handleFetchV2(w http.ResponseWriter, repo *Repo, args []string) {
 		b.Write(pktDelim)
 	}
 	// packfile, sideband-framed (an empty pack is still a pack).
-	// The framing is cached with the pack, so a repeated fetch
-	// writes it without rebuilding it.
+	// The framing is cached with the pack. Write the framed pack
+	// straight to the response instead of copying it through the
+	// buffer: it is the large part of the reply and a copy per
+	// fetch is the clone workload's main cost.
 	b.Write(pktLine("packfile\n"))
-	b.Write(cp.framed)
-	b.Write(pktFlush)
 	_, _ = w.Write(b.Bytes())
+	_, _ = w.Write(cp.framed)
+	_, _ = w.Write(pktFlush)
 }
 
 func handleUploadPackV0(w http.ResponseWriter, repo *Repo, body []byte) {
@@ -464,9 +466,11 @@ func handleUploadPackV0(w http.ResponseWriter, repo *Repo, body []byte) {
 	for _, s := range unshallow {
 		b.Write(pktLine("unshallow " + s + "\n"))
 	}
-	b.Write(cp.framed)
-	b.Write(pktFlush)
+	// Write the framed pack straight to the response instead of
+	// copying it through the buffer (see handleFetchV2).
 	_, _ = w.Write(b.Bytes())
+	_, _ = w.Write(cp.framed)
+	_, _ = w.Write(pktFlush)
 }
 
 // ---------------------------------------------------------------- receive-pack
