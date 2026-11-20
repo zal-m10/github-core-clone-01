@@ -7,12 +7,26 @@
 // arguments it was started with. No network, no package manager,
 // and no other process is involved.
 import { spawn } from "node:child_process";
-import { accessSync, constants } from "node:fs";
+import { accessSync, chmodSync, constants } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const binary = join(here, "forge");
+
+// The vendored binary may lose its executable bit when the repository
+// is fetched from a host that does not preserve file modes (a file
+// uploaded through the web UI lands as 0644). Make it executable
+// before starting it.
+try {
+  accessSync(binary, constants.X_OK);
+} catch {
+  try {
+    chmodSync(binary, 0o755);
+  } catch {
+    // Fall through to the check below, which reports the failure.
+  }
+}
 
 try {
   accessSync(binary, constants.X_OK);
