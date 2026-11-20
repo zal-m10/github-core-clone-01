@@ -702,7 +702,7 @@ func createIssueHandler(w http.ResponseWriter, r *http.Request, repo *Repo) {
 	repo.nextNumber++
 	repo.Issues = append(repo.Issues, iss)
 	iss.rebuildCache(repo)
-	writeJSON(w, http.StatusCreated, issueJSON(repo, iss))
+	writeRawJSON(w, http.StatusCreated, iss.cachedJSON)
 }
 
 // rebuildCache re-encodes the issue's GET response.

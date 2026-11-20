@@ -363,7 +363,6 @@ func handleFetchV2(w http.ResponseWriter, repo *Repo, args []string) {
 	}
 	depth = repo.resolveDepth(wants, shallow, depth, relative)
 	cp := repo.fetchPack(wants, haves, depth, shallow)
-	pack := cp.pack
 	newShallow, unshallow := cp.newShallow, cp.unshallow
 
 	var b bytes.Buffer
@@ -401,8 +400,10 @@ func handleFetchV2(w http.ResponseWriter, repo *Repo, args []string) {
 		b.Write(pktDelim)
 	}
 	// packfile, sideband-framed (an empty pack is still a pack).
+	// The framing is cached with the pack, so a repeated fetch
+	// writes it without rebuilding it.
 	b.Write(pktLine("packfile\n"))
-	b.Write(sideband(pack))
+	b.Write(cp.framed)
 	b.Write(pktFlush)
 	_, _ = w.Write(b.Bytes())
 }
@@ -444,7 +445,6 @@ func handleUploadPackV0(w http.ResponseWriter, repo *Repo, body []byte) {
 	}
 	depth = repo.resolveDepth(wants, shallow, depth, relative)
 	cp := repo.fetchPack(wants, haves, depth, shallow)
-	pack := cp.pack
 	newShallow, unshallow := cp.newShallow, cp.unshallow
 
 	var b bytes.Buffer
@@ -464,7 +464,7 @@ func handleUploadPackV0(w http.ResponseWriter, repo *Repo, body []byte) {
 	for _, s := range unshallow {
 		b.Write(pktLine("unshallow " + s + "\n"))
 	}
-	b.Write(sideband(pack))
+	b.Write(cp.framed)
 	b.Write(pktFlush)
 	_, _ = w.Write(b.Bytes())
 }

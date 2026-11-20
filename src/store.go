@@ -106,6 +106,7 @@ type Repo struct {
 // shallow-info lines, keyed by the fetch's shape.
 type cachedPack struct {
 	pack       []byte
+	framed     []byte // pack sideband-framed once, reused by every fetch
 	newShallow []string
 	unshallow  []string
 }
@@ -207,7 +208,8 @@ func (r *Repo) fetchPack(wants, haves []string, depth int, shallow []string) *ca
 		return cp
 	}
 	objects, newShallow, unshallow := r.collectFetch(wants, haves, depth, shallow)
-	cp := &cachedPack{pack: writePack(objects), newShallow: newShallow, unshallow: unshallow}
+	pack := writePack(objects)
+	cp := &cachedPack{pack: pack, framed: sideband(pack), newShallow: newShallow, unshallow: unshallow}
 	r.packCache[key] = cp
 	return cp
 }
