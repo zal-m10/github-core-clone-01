@@ -705,9 +705,68 @@ func createIssueHandler(w http.ResponseWriter, r *http.Request, repo *Repo) {
 	writeRawJSON(w, http.StatusCreated, iss.cachedJSON)
 }
 
+// issueResp is the struct form of an issue's REST representation.
+// It mirrors issueJSON exactly, but marshals far faster than the
+// map form (no map hashing, no interface boxing), which matters on
+// the write workload where every POST builds and sends one.
+type issueResp struct {
+	ID        int64       `json:"id"`
+	NodeID    string      `json:"node_id"`
+	Number    int64       `json:"number"`
+	Title     string      `json:"title"`
+	Body      string      `json:"body"`
+	State     string      `json:"state"`
+	User      userResp    `json:"user"`
+	Labels    []labelResp `json:"labels"`
+	CreatedAt string      `json:"created_at"`
+	UpdatedAt string      `json:"updated_at"`
+	Comments  int         `json:"comments"`
+	HTMLURL   string      `json:"html_url"`
+}
+
+type userResp struct {
+	Login     string `json:"login"`
+	ID        int64  `json:"id"`
+	NodeID    string `json:"node_id"`
+	AvatarURL string `json:"avatar_url"`
+	HTMLURL   string `json:"html_url"`
+	Type      string `json:"type"`
+	Name      string `json:"name"`
+	Email     string `json:"email"`
+}
+
+type labelResp struct {
+	Name  string `json:"name"`
+	Color string `json:"color"`
+	ID    int64  `json:"id"`
+}
+
+func issueRespFor(repo *Repo, iss *Issue) issueResp {
+	labels := make([]labelResp, 0, len(iss.Labels))
+	for _, name := range iss.Labels {
+		if l, ok := repo.Labels[name]; ok {
+			labels = append(labels, labelResp{Name: l.Name, Color: l.Color, ID: 0})
+		}
+	}
+	return issueResp{
+		ID:        iss.ID,
+		NodeID:    issueGlobalID(repo.ID, iss.Number),
+		Number:    iss.Number,
+		Title:     iss.Title,
+		Body:      iss.Body,
+		State:     iss.State,
+		User:      userResp{Login: viewerLogin, ID: viewerID, NodeID: "U_" + strconv.FormatInt(viewerID, 10), AvatarURL: "https://example.invalid/avatar/" + viewerLogin, HTMLURL: "https://example.invalid/" + viewerLogin, Type: "User", Name: viewerName, Email: viewerEmail},
+		Labels:    labels,
+		CreatedAt: isoTime(iss.CreatedAt),
+		UpdatedAt: isoTime(iss.UpdatedAt),
+		Comments:  len(iss.Comments),
+		HTMLURL:   "https://example.invalid/" + repo.Owner + "/" + repo.Name + "/issues/" + strconv.FormatInt(iss.Number, 10),
+	}
+}
+
 // rebuildCache re-encodes the issue's GET response.
 func (iss *Issue) rebuildCache(repo *Repo) {
-	iss.cachedJSON, _ = json.Marshal(issueJSON(repo, iss))
+	iss.cachedJSON, _ = json.Marshal(issueRespFor(repo, iss))
 }
 
 func issueJSON(repo *Repo, iss *Issue) map[string]any {
